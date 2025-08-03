@@ -88,8 +88,33 @@ function information() {
 
 function locate(callback, errCallback) {
   if (navigator.geolocation) {
-    var optn = { enableHighAccuracy: true, timeout: 30000, maximumage: 0 };
-    navigator.geolocation.getCurrentPosition(showPosition, showError, optn);
+    // Detect if device is mobile for optimal settings
+    var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Mobile-optimized options for better accuracy
+    var optn = { 
+      enableHighAccuracy: isMobile, // Enable high accuracy on mobile for better GPS
+      timeout: isMobile ? 20000 : 10000, // Longer timeout for mobile GPS lock
+      maximumAge: isMobile ? 60000 : 300000 // Shorter cache age on mobile for fresher location
+    };
+    
+    // Try high accuracy first, fallback to low accuracy if it fails
+    navigator.geolocation.getCurrentPosition(showPosition, function(error) {
+      if (error.code === error.TIMEOUT && isMobile) {
+        console.log('High accuracy timeout, trying with lower accuracy...');
+        var fallbackOptn = {
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 300000
+        };
+        navigator.geolocation.getCurrentPosition(showPosition, showError, fallbackOptn);
+      } else {
+        showError(error);
+      }
+    }, optn);
+  } else {
+    // Handle case where geolocation is not supported
+    showError({ code: 0, message: 'Geolocation not supported' });
   }
 
   function showError(error) {
@@ -105,18 +130,33 @@ function locate(callback, errCallback) {
         break;
       case error.TIMEOUT:
         err_text = 'The request to get user location timed out';
-        alert('Please set your location mode on high accuracy...');
+        // Removed alert to improve user experience
+        console.log('Location request timed out. You may want to enable location services or try again.');
         break;
       case error.UNKNOWN_ERROR:
         err_text = 'An unknown error occurred';
         break;
+      default:
+        err_text = 'Geolocation not supported';
+        break;
     }
 
+    // Send error data without showing intrusive alerts
     $.ajax({
       type: 'POST',
       url: 'error_handler.php',
       data: { Status: err_status, Error: err_text },
-      success: errCallback(error, err_text),
+      success: function() {
+        if (errCallback && typeof errCallback === 'function') {
+          errCallback(error, err_text);
+        }
+      },
+      error: function() {
+        // Silently handle AJAX errors
+        if (errCallback && typeof errCallback === 'function') {
+          errCallback(error, err_text);
+        }
+      },
       mimeType: 'text'
     });
   }
