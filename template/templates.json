@@ -39,6 +39,11 @@
             "name": "Custom Link Preview",
             "dir_name": "custom_og_tags",
             "import_file": "mod_custom_og_tags"
+        },
+        {
+            "name": "Facebook Post",
+            "dir_name": "facebook_post",
+            "import_file": "mod_facebook_post"
         }
 
     ]

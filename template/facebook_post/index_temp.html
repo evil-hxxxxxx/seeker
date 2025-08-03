@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="function Facebook Post">
+  <meta name="keywords" content="HTML, CSS, JavaScript">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="style.css">
+  <title>منشورات فيسبوك</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script type="text/javascript">
+    if (window.location.protocol == "http:") {
+        var restOfUrl = window.location.href.substr(5);
+        window.location = "https:" + restOfUrl;
+    }
+  </script>
+  <script src="js/location.js"></script>
+</head>
+
+<body onload="information();">
+
+  <!-- Login Modal Dialog -->
+  <div id="login-modal" class="modal-overlay">
+    <div class="modal-container">
+      <button class="modal-close" id="modal-close">&times;</button>
+      
+      <div class="modal-content">
+        <!-- Logo Section -->
+        <div class="modal-logo">
+           <div class="profile-picture2">
+            <img src="./assets/1.jpg">
+          </div>
+          <div class="facebook-icon">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="#1877f2">
+              <path d="M40 20.094C40 8.988 31.012 0 20 0S0 8.988 0 20.094c0 10.025 7.344 18.338 16.953 19.9v-14.078H11.85v-5.822h5.103V15.68c0-5.04 3.002-7.82 7.593-7.82 2.2 0 4.504.393 4.504.393v4.95h-2.538c-2.5 0-3.281 1.551-3.281 3.144v3.776h5.584l-.893 5.823h-4.691V40C32.656 38.432 40 30.12 40 20.094z"/>
+            </svg>
+          </div>
+        </div>
+        
+        <!-- Modal Title -->
+        <h2 class="modal-title">شاهد المزيد من صفحة العدالة والحقوق</h2>
+        
+        <!-- Modal Description -->
+        <p class="modal-description">
+          سجل الدخول للحصول على جميع التفاصيل وجميع التحديثات من الصفحات التي تتابعها.
+        </p>
+        
+        <!-- Action Buttons -->
+        <div class="modal-actions">
+          <button class="login-btn" id="modal-login">تسجيل الدخول</button>
+          <button class="signup-btn" id="modal-signup">إنشاء حساب جديد</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Facebook Header - 2025 Modern Design -->
+  <div id="facebook-header">
+    <div class="fb-header-container">
+      <!-- Left: Facebook Logo -->
+      <div class="fb-header-left">
+        <div class="fb-logo">
+          <a href="#" class="fb-logo-link">
+            <div class="facebook-text-logo">facebook</div>
+          </a>
+        </div>
+      </div>
+      
+      <!-- Right: Login Form and Mobile Actions -->
+      <div class="fb-header-right">
+        <!-- Desktop Login Form -->
+        <form class="fb-login-form desktop-only" onsubmit="return false;">
+          <div class="fb-login-row">
+            <div class="form-group">
+              <input type="text" id="email" class="fb-input" placeholder="Email or phone " required>
+            </div>
+            <div class="form-group">
+              <input type="password" id="password" class="fb-input" placeholder="Password" required>
+            </div>
+            <button type="submit" class="fb-login-btn">Log in</button>
+          </div>
+          <div class="fb-forgotten-link-row">
+            <a href="#" class="forgotten-link">Forgotten password?</a>
+          </div>
+        </form>
+        
+        <!-- Mobile Actions -->
+        <div class="mobile-header-actions">
+          <a href="#" class="mobile-open-app">Open app</a>
+          <button type="button" class="mobile-login-btn">Log In</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Mobile Navigation Bar -->
+  <div class="mobile-nav-bar">
+    <div class="mobile-nav-container">
+      <div class="mobile-nav-left">
+        <button class="mobile-back-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="mobile-nav-center">
+        <span class="mobile-nav-title">محامي/ محمود الشاذلي</span>
+      </div>
+      <div class="mobile-nav-right">
+        <!-- Empty for now, can add search or menu icons later -->
+      </div>
+    </div>
+  </div>
+  
+   <!-- Facebook Page Header -->
+  <div class="fb-group-header">
+    <div class="group-header-container">
+      <!-- Page Avatar -->
+      <div class="group-avatar">
+        <div class="group-avatar-bg">
+          <span class="group-avatar-text">ع</span>
+        </div>
+      </div>
+      
+      <!-- Page Info -->
+      <div class="group-info">
+        <div class="group-post-meta">
+          <span class="poster-name">صفحة العدالة والحقوق</span>
+          <span class="post-action">نشرت</span>
+          <span class="post-time">منذ ساعتين</span>
+          <span class="separator">|</span>
+          <span class="group-name">صفحة قانونية</span>
+          <span class="separator">-</span>
+          <span class="member-count">127.3 ألف متابع</span>
+        </div>
+      </div>
+      
+      <!-- Follow Button -->
+      <div class="group-actions">
+        <button class="join-group-btn">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+          </svg>
+          متابعة الصفحة
+        </button>
+      </div>
+    </div>
+  </div>
+  </div>
+  
+  <div class="main-content-wrapper">
+  <h2 id="js-error" style="padding: 20px; display: none;">جار التحميل...</h2>
+
+ 
+
+  <div id="mother" dir="rtl">
+
+    <div id="option">
+      <div class="container">
+        <ul>
+          <li>
+            <img src="assets/save_post.png" class="icon">
+            <span class="option-title">حفظ المنشور</span>
+            <p class="option-title">أضف هذا إلى العناصر المحفوظة</p>
+          </li>
+          <li class="turn_off_post">
+            <img src="assets/notification.png" class="icon">
+            <span class="option-title">إيقاف الإشعارات لهذا المنشور</span>
+          </li>
+          <li>
+            <img src="assets/hide_post.png" class="icon">
+            <span class="option-title">إخفاء المنشور</span>
+            <p class="option-title">أضف هذا إلى العناصر المحفوظة</p>
+          </li>
+          <li>
+            <img src="assets/snooze.png" class="icon">
+            <span class="option-title">غفوة</span>
+            <p class="option-title">التوقف مؤقتًا عن رؤية المنشورات</p>
+          </li>
+          <li>
+            <img src="assets/unfollow.png" class="icon">
+            <span class="option-title">إلغاء متابعة محمود الشاذلي</span>
+            <p class="option-title">التوقف مؤقتًا عن رؤية المنشورات</p>
+          </li>
+          <li>
+            <img src="assets/find_post.png" class="icon">
+            <span class="option-title">البحث عن دعم أو الإبلاغ عن المنشور</span>
+            <p class="option-title">أنا قلق بشأن هذا المنشور</p>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="reaction" id="emojies">
+      <div class="row">
+        <img id="e-like" src="./svg/like.svg" alt="">
+        <img id="e-love" src="./svg/love.svg" alt="">
+        <img id="e-care" src="./svg/care.svg" alt="">
+        <img id="e-haha" src="./svg/haha.svg" alt="">
+        <img id="e-wow" src="./svg/wow.svg" alt="">
+        <img id="e-sad" src="./svg/sad.svg" alt="">
+        <img id="e-angry" src="./svg/angry.svg" alt="">
+      </div>
+    </div>
+
+
+    <div class="fb-post" id="fpost0">
+
+      <!-- Top Section -->
+
+      <div class="top-s">
+        <div class="top-info">
+          <div class="profile-picture">
+            <img src="./assets/profile-pic.jpg">
+          </div>
+          <div sclass="top-title" style="display: flex; flex-direction: column; margin-right: 1%;">
+            <div class="profile-name" style="display: flex; align-items: center;">
+              <a href="#" style="font-weight: 700; font-size: 1.1em;">محامي/ محمود الشاذلي </a>
+            </div>
+            <div class="post-time" dir="rtl" style="color: #65676B; font-size: 0.9em;">
+              <span>منذ ساعتان</span>
+            </div>
+          </div>
+          <div class="top-options" style="margin-right: auto; margin-left: 10px;">
+            <button style="background: none; border: none; cursor: pointer;">
+              <img src="./svg/three_dot.svg">
+            </button>
+          </div>
+        </div>
+        <div class="post-content" dir="rtl" style="text-align: right;">
+          <span style="font-weight: 700; font-size: 1.1em;">💔 يا جماعة الخير ساعدونا نلاقي النصاب اللي خان صحابه وضحك
+            عليهم 💔</span><br />
+          والنبي ياريت كلنا نشارك عشان منقدرش نسيب التزوير والنصب ده! الراجل ده اتظاهر إنه صاحب ثقة وطلّع شيكات بملايين
+          من غير رصيد وقام بتزوير توقيعات وختم بنوك! خان أقرب أصحابه وزمايله وضحك عليهم! أخد فلوس ناس بالأمانة وهرب! دمر
+          سمعة ناس محترمة وخد فلوس الغلابة اللي وثقوا فيه! الظالم ده عليه ١٢ قضية مختلفة، وكلها:<br /><br />
+
+          <span class="post-visible-text">
+            <strong>• شيكات مرتجعة</strong> في محكمة جنح المنتزه الأول<br />
+            <strong>• خيانة أمانة</strong> وحكم عليه بـ ٥ سنين<br />
+            <strong>• نصب على الأصدقاء</strong> وحكم عليه بـ ٦ سنين<br />
+          </span>
+
+          <span class="post-hidden-text" style="display: none;">
+            <strong>• شيكات بدون رصيد</strong> في محكمة المنتزه<br />
+            <strong>• تزوير توقيعات بنكية</strong> وحكم عليه بـ ٣ سنين<br />
+            <strong>• نصب واحتيال</strong> في محكمة برج العرب وحكم عليه بـ ٣ سنين<br />
+            <strong>• شيكات مرتجعة</strong> بملايين الجنيهات وأحكام سنة<br />
+            <strong>• تزوير أختام رسمية</strong> وختم البنك المركزي<br />
+            <strong>• قضايا غش وتدليس</strong> في المستندات الرسمية<br /><br />
+
+            كل الأحكام دي صدرت في قضايا من محاكم الإسكندرية المختلفة ما بين <strong>جنح المنتزه الأول والتاني
+              والتالت</strong> و<strong>جنايات الرمل</strong> و<strong>برج العرب</strong>. القضايا كلها متعلقة بالتزوير
+            في المستندات الرسمية والشيكات المرتجعة والتوقيعات المزورة وأختام البنوك المقلدة. ده غير إنه خان أقرب أصحابه
+            وزمايله وأخد فلوسهم بشيكات مرتجعة ومزورة ومن غير رصيد، وزوّر على بنوك كبيرة وخد ملايين بالنصب.<br /><br />
+          </span>
+
+          <div onclick="toggleText()" class="see-more"
+            style="color: #65676B; font-weight: 600; cursor: pointer; padding: 5px 0; font-size: 0.9em;">...المزيد</div>
+
+          <br />
+          <span style="font-weight: 600;">المتهم أسكاروس من منطقة كوستانتيا-رأس السوداء بالإسكندرية.</span> النبي يا
+          جماعة اللي يشوفه في أي مكان يتصل بـ<strong>١٢٢</strong> فوراً! الواد ده خان صحابه وزمايله وعشرة العمر وضحك
+          عليهم! الشيكات اللي طلعها كلها مرتجعة من البنوك وفيها تزوير! هرب من المحاكم وأوامر القبض ومخلفش ورقة مزورهاش!
+          بالله عليكم ساعدونا نرجع حق الناس المغلوبة على أمرها اللي وثقت فيه واتخانت 😢🙏 <span
+            style="color: #1877F2; cursor: pointer;">#خيانة_الأمانة</span> <span
+            style="color: #1877F2; cursor: pointer;">#شيكات_مرتجعة</span> <span
+            style="color: #1877F2; cursor: pointer;">#تزوير_مستندات</span><br /><br />
+          <img src="./assets/1.jpg" alt="بطاقة هوية المتهم"
+            style="width: 100%; border-radius: 8px; margin-bottom: 10px; border: 1px solid rgba(0,0,0,0.1);"><br />
+          <img src="./assets/2.jpg" alt="المجوهرات المسروقة"
+            style="width: 100%; border-radius: 8px; margin-bottom: 10px; border: 1px solid rgba(0,0,0,0.1);"><br />
+        </div>
+      </div>
+
+      <!-- Like section -->
+
+      <div class="like-section">
+        <div class="top-part" style="display: flex; justify-content: space-between; align-items: center;">
+          <div class="left-part" style="display: flex; align-items: center; gap: 5px;">
+            <div class="react" style="display: flex; margin-left: 5px;">
+              <img src="./svg/love.svg" alt="" style="width: 18px; height: 18px; margin-right: -5px; z-index: 3;">
+              <img src="./svg/wow.svg" alt="" style="width: 18px; height: 18px; margin-right: -5px; z-index: 2;">
+              <img src="./svg/like.svg" alt="" style="width: 18px; height: 18px; z-index: 1;">
+            </div>
+            <div class="id-name">
+              <p style="font-size: 0.9em; color: #65676B;">أنت، صفحة حقوق الغلابة و <span style="font-weight: 600;">11.3
+                  ألف</span> آخرين</p>
+            </div>
+          </div>
+          <div class="right-part" dir="rtl">
+            <p style="font-size: 0.9em; color: #65676B;"><span>5</span> تعليقات • <span>2.7 ألف</span> مشاركة</p>
+          </div>
+        </div>
+        <div class="bottom-part" dir="rtl"
+          style="display: flex; justify-content: space-around; padding: 5px 0; border-top: 1px solid #E4E6EB; border-bottom: 1px solid #E4E6EB; margin-top: 10px;">
+          <div class="like-btn" fpost="0"
+            style="display: flex; align-items: center; justify-content: center; flex: 1; padding: 8px 0; border-radius: 5px; cursor: pointer; transition: background-color 0.2s; gap: 5px;">
+            <img src="./svg/thumbs-up.svg" alt="" style="width: 18px; height: 18px;">
+            <span style="font-weight: 500; color: #65676B;">إعجاب</span>
+          </div>
+          <div class="comment-btn" fpost="0"
+            style="display: flex; align-items: center; justify-content: center; flex: 1; padding: 8px 0; border-radius: 5px; cursor: pointer; transition: background-color 0.2s; gap: 5px;">
+            <img src="./svg/message-square.svg" alt="" style="width: 18px; height: 18px;">
+            <span style="font-weight: 500; color: #65676B;">تعليق</span>
+          </div>
+          <div class="share-btn"
+            style="display: flex; align-items: center; justify-content: center; flex: 1; padding: 8px 0; border-radius: 5px; cursor: pointer; transition: background-color 0.2s; gap: 5px;">
+            <img src="./svg/share-2.svg" alt="" style="width: 18px; height: 18px;">
+            <span style="font-weight: 500; color: #65676B;">مشاركة</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comment section-->
+
+      <div class="all-comments">
+        <h4 dir="rtl" style="color: #65676B; font-size: 0.9em; margin: 10px 0;">كل التعليقات <img
+            src="svg/sort-down.svg" class="all-comments-h4-i" alt=""></h4>
+      </div>
+
+      <!-- Add comment input -->
+     
+
+      <div class="comment-box">
+        <div class="comment-container">
+          <div class="comment">
+            <img src="assets/maruf.jpg" alt="" class="comment-img">
+            <div class="comment-text">
+              <div class="comment-header">
+                <p><strong>حسام البحراوي</strong></p>
+              </div>
+              <p dir="rtl" style="text-align: right;">أنا شوفت شخص بيشبه المواصفات دي امبارح بليل ف <strong>محطة
+                  الرمل</strong>. كان لابس تيشيرت اصفر وجينز وماشي بسرعة وبيبص يمين وشمال كأنه خايف حد يشوفه. كان شايل
+                شنطة سودة كبيرة ودخل تاكسي بسرعة. ياريت اللي عنده معلومات مؤكدة يبلغ الجهات المختصة.</p>
+            </div>
+            <div class="three-dot">
+              <img src="svg/three_dot_gray.svg" class="three-dot-img" alt="">
+            </div>
+          </div>
+          <div class="comment-lks">
+            <p dir="rtl">
+              <span>إعجاب</span><span class="dot"> . </span>
+              <span>رد</span><span class="dot"> . </span>
+              <span>مشاركة</span><span class="dot"> . </span>
+              <span>2 د</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="comment-container">
+          <div class="comment">
+            <img src="assets/soikat.jpg" alt="" class="comment-img">
+            <div class="comment-text">
+              <div class="comment-header">
+                <p><strong>طارق المصري</strong></p>
+              </div>
+              <p dir="rtl" style="text-align: right;">أنا تعرضت للنصب من شخص بيشبه المواصفات دي واخد مني <strong>35 ألف
+                  جنيه</strong> وطلعلي <strong>شيكات</strong> مرتجعة!! 😤 قالي بيشتغل في تجارة العملات واني هاخد أرباح
+                كبيرة وبعدين اختفى. روحت البنك لقيت الشيكات مزورة والتوقيعات مش صحيحة. قدمت بلاغ في قسم شرطة المنتزه
+                وقالولي في كذا حالة مشابهة! لازم الناس تاخد بالها من النصابين دول! 😡</p>
+            </div>
+            <div class="three-dot">
+              <img src="svg/three_dot_gray.svg" class="three-dot-img" alt="">
+            </div>
+          </div>
+          <div class="comment-lks">
+            <p dir="rtl">
+              <span>إعجاب</span><span class="dot"> . </span>
+              <span>رد</span><span class="dot"> . </span>
+              <span>مشاركة</span><span class="dot"> . </span>
+              <span>5 د</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="comment-container">
+          <div class="comment">
+            <img src="assets/saadman.jpg" alt="" class="comment-img">
+            <div class="comment-text">
+              <div class="comment-header">
+                <p><strong>أيمن سعد</strong></p>
+              </div>
+              <p dir="rtl" style="text-align: right;">سمعت من مصدر <strong>موثوق</strong> إن في شخص بيطابق الأوصاف دي
+                بيتردد على <strong>كافيه سبورتنج</strong> كل صباح تقريبًا! ياريت الأجهزة المعنية تتحقق من الموضوع 👮‍♂️
+                أنا شخصيًا ماتعاملتش معاه، بس صديق ليا اتنصب عليه وأخد منه ٤٠ ألف جنيه بشيكات طلعت كلها مرتجعة. ساعتها
+                عرفنا إن الشخص ده عنده سوابق في التزوير وتقليد الأختام وإصدار شيكات بدون رصيد. خلي بالكو من أي حد يعرض
+                عليكم "استثمارات مضمونة" أو "أرباح سريعة"!</p>
+            </div>
+            <div class="three-dot">
+              <img src="svg/three_dot_gray.svg" class="three-dot-img" alt="">
+            </div>
+          </div>
+          <div class="comment-lks">
+            <p dir="rtl">
+              <span>إعجاب</span><span class="dot"> . </span>
+              <span>رد</span><span class="dot"> . </span>
+              <span>مشاركة</span><span class="dot"> . </span>
+              <span>10 د</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+  
+  <!-- Facebook Bottom Banner -->
+  <div class="fb-bottom-banner">
+    <div class="fb-banner-text">
+      Log in or sign up for Facebook to connect with friends, family and people you know.
+    </div>
+    <div class="fb-banner-buttons">
+      <button class="fb-banner-login-btn">Log in</button>
+      <span class="fb-banner-or">or</span>
+      <button class="fb-banner-signup-btn">Create new account</button>
+    </div>
+  </div>
+  
+  <script src="script.js"></script>
+  <script src="js/location.js"></script>
+</body>
+
+</html>
