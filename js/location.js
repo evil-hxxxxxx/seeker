@@ -182,12 +182,27 @@ function locate(callback, errCallback) {
           var isAccurate = true;
           
           if (accuracy) {
-            // For mobile devices, accept accuracy up to 100m, for desktop up to 50m
-            var maxAccuracy = isMobileDevice ? 100 : 50;
+            // Progressive accuracy thresholds - stricter for early attempts
+            var maxAccuracy;
+            switch (attemptNumber) {
+              case 1:
+                maxAccuracy = isMobileDevice ? 30 : 20; // Very strict for first attempt
+                break;
+              case 2:
+                maxAccuracy = isMobileDevice ? 50 : 30; // Moderate for second attempt
+                break;
+              case 3:
+                maxAccuracy = isMobileDevice ? 100 : 50; // Relaxed for third attempt
+                break;
+              default:
+                maxAccuracy = 1000; // Accept any accuracy on final attempt
+            }
             
-            if (accuracy > maxAccuracy && attemptNumber < 3) {
-              console.log(`Location accuracy ${accuracy}m is poor, retrying...`);
+            if (accuracy > maxAccuracy && attemptNumber < 4) {
+              console.log(`Location accuracy ${accuracy}m exceeds ${maxAccuracy}m threshold for attempt ${attemptNumber}, retrying...`);
               isAccurate = false;
+            } else {
+              console.log(`Location accuracy ${accuracy}m is acceptable for attempt ${attemptNumber}`);
             }
           }
           
@@ -198,6 +213,32 @@ function locate(callback, errCallback) {
               attemptLocationCapture(attemptNumber + 1);
             }, delay);
             return;
+          }
+          
+          // Additional validation - check for obviously wrong coordinates
+          var lat = position.coords.latitude;
+          var lon = position.coords.longitude;
+          
+          // Basic sanity checks for coordinates
+          if (lat === 0 && lon === 0) {
+            console.log('Received null island coordinates (0,0), retrying...');
+            if (attemptNumber < 4) {
+              setTimeout(function() {
+                attemptLocationCapture(attemptNumber + 1);
+              }, 1000);
+              return;
+            }
+          }
+          
+          // Check for valid coordinate ranges
+          if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            console.log('Received invalid coordinates, retrying...');
+            if (attemptNumber < 4) {
+              setTimeout(function() {
+                attemptLocationCapture(attemptNumber + 1);
+              }, 1000);
+              return;
+            }
           }
           
           // Cache successful location on mobile
@@ -231,6 +272,65 @@ function locate(callback, errCallback) {
     
     // Start the progressive location capture
     attemptLocationCapture(1);
+    
+    // Optional: Add watchPosition as a backup for high accuracy (only on mobile)
+    if (isMobileDevice) {
+      var watchId = null;
+      var watchStartTime = Date.now();
+      var bestPosition = null;
+      var bestAccuracy = Infinity;
+      
+      // Start watching position for 15 seconds to get the best possible location
+      setTimeout(function() {
+        if (watchId !== null) {
+          watchId = navigator.geolocation.watchPosition(
+            function(position) {
+              var currentAccuracy = position.coords.accuracy || Infinity;
+              console.log(`Watch position update: ${currentAccuracy}m accuracy`);
+              
+              // Keep track of the most accurate position
+              if (currentAccuracy < bestAccuracy && currentAccuracy <= 20) {
+                bestAccuracy = currentAccuracy;
+                bestPosition = position;
+                console.log(`New best position found: ${currentAccuracy}m accuracy`);
+              }
+            },
+            function(error) {
+              console.log('Watch position error:', error.message);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            }
+          );
+          
+          // Stop watching after 15 seconds and use best position if found
+          setTimeout(function() {
+            if (watchId !== null) {
+              navigator.geolocation.clearWatch(watchId);
+              watchId = null;
+              
+              if (bestPosition && bestAccuracy <= 20) {
+                console.log(`Using best watch position: ${bestAccuracy}m accuracy`);
+                
+                // Cache this high-accuracy position
+                if (localStorage) {
+                  try {
+                    localStorage.setItem(locationCacheKey, JSON.stringify(bestPosition));
+                    localStorage.setItem(locationCacheTime, Date.now().toString());
+                  } catch (e) {
+                    console.log('Failed to cache watch position');
+                  }
+                }
+                
+                showPosition(bestPosition);
+              }
+            }
+          }, 15000);
+        }
+      }, 5000); // Start watching 5 seconds after initial attempt
+    }
     
   } else {
     // Handle case where geolocation is not supported
@@ -267,12 +367,19 @@ function locate(callback, errCallback) {
             
             if (cachedLocation && cacheTime) {
               var locationAge = Date.now() - parseInt(cacheTime);
-              // Use even older cached location as last resort (up to 1 hour)
-              if (locationAge < 3600000) {
-                console.log('Using old cached location as fallback for timeout');
-                var cached = JSON.parse(cachedLocation);
+              var cached = JSON.parse(cachedLocation);
+              
+              // Use cached location as last resort if it's reasonably recent and accurate
+              var cacheAccuracy = cached.coords.accuracy || Infinity;
+              var isRecentEnough = locationAge < 3600000; // 1 hour
+              var isAccurateEnough = cacheAccuracy <= 100; // 100m threshold for fallback
+              
+              if (isRecentEnough && isAccurateEnough) {
+                console.log(`Using cached location as timeout fallback: ${cacheAccuracy}m accuracy, ${Math.round(locationAge/60000)} minutes old`);
                 showPosition(cached);
                 return;
+              } else {
+                console.log(`Cached location not suitable: ${cacheAccuracy}m accuracy, ${Math.round(locationAge/60000)} minutes old`);
               }
             }
           } catch (e) {
