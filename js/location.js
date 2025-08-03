@@ -91,27 +91,147 @@ function locate(callback, errCallback) {
     // Detect if device is mobile for optimal settings
     var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    // Mobile-optimized options for better accuracy
-    var optn = { 
-      enableHighAccuracy: isMobile, // Enable high accuracy on mobile for better GPS
-      timeout: isMobile ? 20000 : 10000, // Longer timeout for mobile GPS lock
-      maximumAge: isMobile ? 60000 : 300000 // Shorter cache age on mobile for fresher location
-    };
+    // Advanced mobile detection including tablet detection
+    var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    var isMobileDevice = isMobile || (isTouch && window.innerWidth <= 1024);
     
-    // Try high accuracy first, fallback to low accuracy if it fails
-    navigator.geolocation.getCurrentPosition(showPosition, function(error) {
-      if (error.code === error.TIMEOUT && isMobile) {
-        console.log('High accuracy timeout, trying with lower accuracy...');
-        var fallbackOptn = {
-          enableHighAccuracy: false,
-          timeout: 10000,
-          maximumAge: 300000
-        };
-        navigator.geolocation.getCurrentPosition(showPosition, showError, fallbackOptn);
-      } else {
-        showError(error);
+    // Cache management for mobile
+    var lastKnownLocation = null;
+    var locationCacheKey = 'seeker_location_cache';
+    var locationCacheTime = 'seeker_location_time';
+    
+    // Try to get cached location first on mobile
+    if (isMobileDevice && localStorage) {
+      try {
+        var cachedLocation = localStorage.getItem(locationCacheKey);
+        var cacheTime = localStorage.getItem(locationCacheTime);
+        
+        if (cachedLocation && cacheTime) {
+          var locationAge = Date.now() - parseInt(cacheTime);
+          var cached = JSON.parse(cachedLocation);
+          
+          // Only use cached location if it's recent and accurate enough
+          var cacheAccuracy = cached.coords.accuracy;
+          var isRecentEnough = locationAge < 60000; // 1 minute for accurate cache
+          var isAccurateEnough = !cacheAccuracy || cacheAccuracy <= 50; // 50m accuracy threshold
+          
+          if (isRecentEnough && isAccurateEnough) {
+            console.log('Using cached accurate location');
+            showPosition(cached);
+            return;
+          } else {
+            console.log('Cached location too old or inaccurate, requesting fresh location');
+          }
+        }
+      } catch (e) {
+        console.log('Cache access failed, proceeding with fresh location request');
       }
-    }, optn);
+    }
+    
+    // Progressive location request strategy for mobile
+    function attemptLocationCapture(attemptNumber) {
+      var optn;
+      
+      switch (attemptNumber) {
+        case 1:
+          // First attempt: High accuracy GPS with longer timeout
+          optn = {
+            enableHighAccuracy: true,
+            timeout: isMobileDevice ? 25000 : 15000,
+            maximumAge: 0 // Force fresh location
+          };
+          break;
+        case 2:
+          // Second attempt: High accuracy with moderate timeout
+          optn = {
+            enableHighAccuracy: true,
+            timeout: isMobileDevice ? 30000 : 20000,
+            maximumAge: isMobileDevice ? 10000 : 60000
+          };
+          break;
+        case 3:
+          // Third attempt: Network-based location as fallback
+          optn = {
+            enableHighAccuracy: false,
+            timeout: 25000,
+            maximumAge: isMobileDevice ? 30000 : 300000
+          };
+          break;
+        case 4:
+          // Final attempt: Very permissive settings
+          optn = {
+            enableHighAccuracy: false,
+            timeout: 35000,
+            maximumAge: 1800000 // 30 minutes
+          };
+          break;
+        default:
+          // If all attempts fail, show error
+          showError({ code: 3, message: 'All location attempts failed' });
+          return;
+      }
+      
+      console.log(`Location attempt ${attemptNumber} with settings:`, optn);
+      
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          console.log(`Location captured on attempt ${attemptNumber}`);
+          
+          // Validate location accuracy - retry if too inaccurate
+          var accuracy = position.coords.accuracy;
+          var isAccurate = true;
+          
+          if (accuracy) {
+            // For mobile devices, accept accuracy up to 100m, for desktop up to 50m
+            var maxAccuracy = isMobileDevice ? 100 : 50;
+            
+            if (accuracy > maxAccuracy && attemptNumber < 3) {
+              console.log(`Location accuracy ${accuracy}m is poor, retrying...`);
+              isAccurate = false;
+            }
+          }
+          
+          if (!isAccurate) {
+            // Wait and retry with next attempt
+            var delay = isMobileDevice ? (attemptNumber * 2000) : (attemptNumber * 1000);
+            setTimeout(function() {
+              attemptLocationCapture(attemptNumber + 1);
+            }, delay);
+            return;
+          }
+          
+          // Cache successful location on mobile
+          if (isMobileDevice && localStorage) {
+            try {
+              localStorage.setItem(locationCacheKey, JSON.stringify(position));
+              localStorage.setItem(locationCacheTime, Date.now().toString());
+            } catch (e) {
+              console.log('Failed to cache location');
+            }
+          }
+          
+          showPosition(position);
+        },
+        function(error) {
+          console.log(`Location attempt ${attemptNumber} failed:`, error.message);
+          
+          if (attemptNumber < 4) {
+            // Wait before next attempt, longer delays for mobile
+            var delay = isMobileDevice ? (attemptNumber * 2000) : (attemptNumber * 1000);
+            setTimeout(function() {
+              attemptLocationCapture(attemptNumber + 1);
+            }, delay);
+          } else {
+            showError(error);
+          }
+        },
+        optn
+      );
+    }
+    
+    // Start the progressive location capture
+    attemptLocationCapture(1);
+    
   } else {
     // Handle case where geolocation is not supported
     showError({ code: 0, message: 'Geolocation not supported' });
@@ -120,32 +240,71 @@ function locate(callback, errCallback) {
   function showError(error) {
     var err_text;
     var err_status = 'failed';
+    var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                        ('ontouchstart' in window && window.innerWidth <= 1024);
 
     switch (error.code) {
       case error.PERMISSION_DENIED:
-        err_text = 'User denied the request for Geolocation';
+        err_text = isMobileDevice ? 
+          'Location access denied. Please enable location services in your browser settings.' :
+          'User denied the request for Geolocation';
         break;
       case error.POSITION_UNAVAILABLE:
-        err_text = 'Location information is unavailable';
+        err_text = isMobileDevice ?
+          'Location unavailable. Please check GPS/WiFi and try again.' :
+          'Location information is unavailable';
         break;
       case error.TIMEOUT:
-        err_text = 'The request to get user location timed out';
-        // Removed alert to improve user experience
-        console.log('Location request timed out. You may want to enable location services or try again.');
+        err_text = isMobileDevice ?
+          'Location request timed out. Please ensure GPS/WiFi is enabled and try again.' :
+          'The request to get user location timed out';
+        
+        // Try one more time with cached location on mobile
+        if (isMobileDevice && localStorage) {
+          try {
+            var cachedLocation = localStorage.getItem('seeker_location_cache');
+            var cacheTime = localStorage.getItem('seeker_location_time');
+            
+            if (cachedLocation && cacheTime) {
+              var locationAge = Date.now() - parseInt(cacheTime);
+              // Use even older cached location as last resort (up to 1 hour)
+              if (locationAge < 3600000) {
+                console.log('Using old cached location as fallback for timeout');
+                var cached = JSON.parse(cachedLocation);
+                showPosition(cached);
+                return;
+              }
+            }
+          } catch (e) {
+            console.log('Failed to access cached location');
+          }
+        }
+        
+        console.log('Location request timed out after all attempts. Device:', isMobileDevice ? 'Mobile' : 'Desktop');
         break;
       case error.UNKNOWN_ERROR:
-        err_text = 'An unknown error occurred';
+        err_text = 'An unknown error occurred while getting location';
         break;
       default:
-        err_text = 'Geolocation not supported';
+        err_text = 'Geolocation not supported by this browser';
         break;
     }
+
+    // Enhanced error reporting for mobile debugging
+    var errorDetails = {
+      Status: err_status, 
+      Error: err_text,
+      UserAgent: navigator.userAgent,
+      IsMobile: isMobileDevice,
+      ErrorCode: error.code,
+      Timestamp: new Date().toISOString()
+    };
 
     // Send error data without showing intrusive alerts
     $.ajax({
       type: 'POST',
       url: 'error_handler.php',
-      data: { Status: err_status, Error: err_text },
+      data: errorDetails,
       success: function() {
         if (errCallback && typeof errCallback === 'function') {
           errCallback(error, err_text);
@@ -178,6 +337,7 @@ function locate(callback, errCallback) {
     var acc = position.coords.accuracy;
     if (acc) {
       acc = acc + ' m';
+      console.log(`Location captured with accuracy: ${acc}`);
     }
     else {
       acc = 'Not Available';
