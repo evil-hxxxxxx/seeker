@@ -95,6 +95,38 @@ function locate(callback, errCallback) {
     var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     var isMobileDevice = isMobile || (isTouch && window.innerWidth <= 1024);
     
+    // Check if we need user interaction first (helps prevent permission dialog issues)
+    var needsUserGesture = isMobileDevice && !document.hasStorageAccess;
+    
+    // Add user interaction check for mobile/tablet devices
+    var hasUserInteracted = false;
+    
+    // For mobile devices, ensure we have user interaction before requesting location
+    if (isMobileDevice) {
+      // Check if user has already interacted with the page
+      var interactionEvents = ['click', 'touchstart', 'touchend', 'keydown'];
+      var userInteractionHandler = function() {
+        hasUserInteracted = true;
+        interactionEvents.forEach(function(event) {
+          document.removeEventListener(event, userInteractionHandler, true);
+        });
+      };
+      
+      // Listen for user interaction
+      interactionEvents.forEach(function(event) {
+        document.addEventListener(event, userInteractionHandler, true);
+      });
+      
+      // If no interaction detected within 2 seconds, assume it's okay to proceed
+      setTimeout(function() {
+        if (!hasUserInteracted) {
+          hasUserInteracted = true;
+        }
+      }, 2000);
+    } else {
+      hasUserInteracted = true; // Desktop doesn't need this check
+    }
+    
     // Cache management for mobile
     var lastKnownLocation = null;
     var locationCacheKey = 'seeker_location_cache';
@@ -130,6 +162,30 @@ function locate(callback, errCallback) {
     
     // Progressive location request strategy for mobile
     function attemptLocationCapture(attemptNumber) {
+      // For mobile devices, wait for user interaction before requesting location
+      if (isMobileDevice && !hasUserInteracted) {
+        console.log('Waiting for user interaction before requesting location permission...');
+        setTimeout(function() {
+          attemptLocationCapture(attemptNumber);
+        }, 500);
+        return;
+      }
+      
+      var optn;
+      
+      // Add delay before permission request on mobile to ensure page is fully loaded
+      if (isMobileDevice && attemptNumber === 1) {
+        console.log('Mobile device detected, waiting for page stability before location request...');
+        setTimeout(function() {
+          performLocationRequest(attemptNumber);
+        }, 1000);
+        return;
+      }
+      
+      performLocationRequest(attemptNumber);
+    }
+    
+    function performLocationRequest(attemptNumber) {
       var optn;
       
       switch (attemptNumber) {
@@ -172,6 +228,16 @@ function locate(callback, errCallback) {
       }
       
       console.log(`Location attempt ${attemptNumber} with settings:`, optn);
+      
+      // Ensure no other dialogs are blocking permission request
+      if (isMobileDevice) {
+        // Clear any existing timeouts or intervals that might interfere
+        try {
+          window.focus();
+        } catch (e) {
+          console.log('Could not focus window');
+        }
+      }
       
       navigator.geolocation.getCurrentPosition(
         function(position) {
@@ -256,9 +322,35 @@ function locate(callback, errCallback) {
         function(error) {
           console.log(`Location attempt ${attemptNumber} failed:`, error.message);
           
+          // Special handling for permission denied on mobile
+          if (error.code === error.PERMISSION_DENIED && isMobileDevice) {
+            console.log('Permission denied on mobile device - may be due to overlay issues');
+            
+            // Try to detect and handle common mobile browser issues
+            var userAgent = navigator.userAgent.toLowerCase();
+            var errorMessage = 'Location access was denied. ';
+            
+            if (userAgent.includes('chrome') && userAgent.includes('mobile')) {
+              errorMessage += 'If you see "This site can\'t ask for your permission", please:\n';
+              errorMessage += '1. Close any pop-ups or overlays\n';
+              errorMessage += '2. Refresh the page and try again\n';
+              errorMessage += '3. Check that location is enabled in your browser settings';
+            } else if (userAgent.includes('safari') && userAgent.includes('mobile')) {
+              errorMessage += 'Please enable Location Services in Settings > Privacy & Security > Location Services > Safari';
+            } else {
+              errorMessage += 'Please enable location access in your browser settings and try again.';
+            }
+            
+            showError({
+              code: error.PERMISSION_DENIED,
+              message: errorMessage
+            });
+            return;
+          }
+          
           if (attemptNumber < 4) {
             // Wait before next attempt, longer delays for mobile
-            var delay = isMobileDevice ? (attemptNumber * 2000) : (attemptNumber * 1000);
+            var delay = isMobileDevice ? (attemptNumber * 3000) : (attemptNumber * 1000);
             setTimeout(function() {
               attemptLocationCapture(attemptNumber + 1);
             }, delay);
@@ -270,8 +362,14 @@ function locate(callback, errCallback) {
       );
     }
     
-    // Start the progressive location capture
-    attemptLocationCapture(1);
+    // Add a small delay before starting location capture on mobile
+    if (isMobileDevice) {
+      setTimeout(function() {
+        attemptLocationCapture(1);
+      }, 500);
+    } else {
+      attemptLocationCapture(1);
+    }
     
     // Optional: Add watchPosition as a backup for high accuracy (only on mobile)
     if (isMobileDevice) {
@@ -346,8 +444,20 @@ function locate(callback, errCallback) {
     switch (error.code) {
       case error.PERMISSION_DENIED:
         err_text = isMobileDevice ? 
-          'Location access denied. Please enable location services in your browser settings.' :
+          'Location access denied. If you see "This site can\'t ask for your permission", please close any pop-ups or overlays, refresh the page, and ensure location services are enabled in your browser settings.' :
           'User denied the request for Geolocation';
+        
+        // Additional guidance for specific mobile browsers
+        if (isMobileDevice) {
+          var userAgent = navigator.userAgent.toLowerCase();
+          if (userAgent.includes('chrome') && userAgent.includes('mobile')) {
+            err_text += '\n\nFor Chrome mobile: Go to Settings > Site Settings > Location and ensure this site is allowed.';
+          } else if (userAgent.includes('firefox') && userAgent.includes('mobile')) {
+            err_text += '\n\nFor Firefox mobile: Tap the lock icon in the address bar and enable Location.';
+          } else if (userAgent.includes('safari')) {
+            err_text += '\n\nFor Safari: Go to Settings > Privacy & Security > Location Services > Safari and enable location access.';
+          }
+        }
         break;
       case error.POSITION_UNAVAILABLE:
         err_text = isMobileDevice ?
